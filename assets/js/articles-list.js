@@ -12,9 +12,6 @@
     const categoriesContainer = document.querySelector('[data-list-categories]');
     const groupsContainer = document.querySelector('[data-list-groups]');
     const topLinks = document.querySelectorAll('[data-list-top], [data-list-top-drawer]');
-    const menuToggle = document.querySelector('[data-list-menu-toggle]');
-    const drawer = document.getElementById('list-drawer');
-    const backdrop = document.querySelector('.list-drawer-backdrop');
 
     if (!yamlSource || !categoriesContainer || !groupsContainer) {
       return;
@@ -25,42 +22,8 @@
         link.addEventListener('click', (event) => {
           event.preventDefault();
           document.getElementById('top')?.scrollIntoView({ behavior: 'smooth' });
+          window.setTimeout(() => link.blur(), 150);
         });
-      });
-    }
-
-    if (menuToggle && drawer && backdrop) {
-      const links = drawer.querySelectorAll('a');
-
-      const closeDrawer = () => {
-        drawer.classList.remove('is-open');
-        backdrop.hidden = true;
-        menuToggle.setAttribute('aria-expanded', 'false');
-        drawer.setAttribute('aria-hidden', 'true');
-      };
-
-      const openDrawer = () => {
-        drawer.classList.add('is-open');
-        backdrop.hidden = false;
-        menuToggle.setAttribute('aria-expanded', 'true');
-        drawer.setAttribute('aria-hidden', 'false');
-      };
-
-      menuToggle.addEventListener('click', () => {
-        const expanded = menuToggle.getAttribute('aria-expanded') === 'true';
-        expanded ? closeDrawer() : openDrawer();
-      });
-
-      backdrop.addEventListener('click', closeDrawer);
-
-      links.forEach((link) => {
-        link.addEventListener('click', closeDrawer);
-      });
-
-      document.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape' && drawer.classList.contains('is-open')) {
-          closeDrawer();
-        }
       });
     }
 

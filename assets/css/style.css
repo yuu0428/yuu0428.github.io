@@ -921,37 +921,48 @@ main {
 
 .article-list-page .header-inner {
   justify-content: center;
+  align-items: center;
   position: relative;
+  padding: 16px 56px;
 }
 
 .article-list-header .menu-toggle {
   position: absolute;
-  left: 0;
   top: 50%;
+  left: 16px;
   transform: translateY(-50%);
+  display: inline-flex;
 }
 
 .article-list-header .article-list-top {
   position: absolute;
-  right: 0;
   top: 50%;
+  right: 16px;
   transform: translateY(-50%);
+  white-space: nowrap;
 }
 
 @media (max-width: 560px) {
   .article-list-page .header-inner {
-    flex-direction: column;
-    gap: 12px;
-    padding: 12px 0;
+    padding: 12px 40px;
   }
 
   .article-list-header .menu-toggle {
-    position: static;
-    transform: none;
+    left: 20px;
+  }
+
+  .article-list-header .site-logo {
+    align-self: center;
+    margin: 0;
   }
 
   .article-list-header .article-list-top {
-    position: static;
+    right: 16px;
+    top: auto;
+    bottom: -36px;
     transform: none;
+    font-size: 0.8rem;
+    padding: 8px 14px;
+    white-space: nowrap;
   }
 }

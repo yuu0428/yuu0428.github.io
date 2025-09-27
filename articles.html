@@ -9,7 +9,7 @@
 <body id="top" class="article-list-page">
   <header class="site-header article-list-header" data-fixed>
     <div class="header-inner">
-      <button class="menu-toggle" type="button" aria-label="メニューを開く" aria-controls="list-drawer" aria-expanded="false" data-list-menu-toggle>
+      <button class="menu-toggle" type="button" aria-label="メニューを開く" aria-controls="site-drawer" aria-expanded="false">
         <span class="menu-bar"></span>
         <span class="menu-bar"></span>
         <span class="menu-bar"></span>
@@ -20,18 +20,24 @@
       <a class="article-list-top" href="#top" data-list-top>記事一覧のトップへ戻る</a>
     </div>
   </header>
-  <aside class="site-drawer list-drawer" id="list-drawer" aria-hidden="true">
+  <aside class="site-drawer" id="site-drawer" aria-hidden="true">
     <div class="drawer-inner">
-      <nav class="drawer-nav" aria-label="記事一覧メニュー">
+      <nav class="drawer-nav" aria-label="主要メニュー">
         <ul>
           <li><a href="index.html">TOP</a></li>
           <li><a href="#top" data-list-top-drawer>記事一覧トップ</a></li>
-          <li><a href="index.html#reports">活動報告に戻る</a></li>
+          <li><a href="index.html#overview">団体概要</a></li>
+          <li><a href="index.html#greeting">代表挨拶</a></li>
+          <li><a href="index.html#reports">活動報告</a></li>
+          <li><a href="articles.html">記事一覧</a></li>
+          <li><a href="index.html#audience-highschool">高校生の方へ</a></li>
+          <li><a href="index.html#audience-organizations">他団体の方へ</a></li>
+          <li><a href="index.html#note-link">note</a></li>
         </ul>
       </nav>
     </div>
   </aside>
-  <div class="drawer-backdrop list-drawer-backdrop" hidden></div>
+  <div class="drawer-backdrop" hidden></div>
   <main class="article-list-main">
     <div class="article-list-container">
       <div class="article-list-heading">
@@ -436,6 +442,7 @@ articles:
     date: 2024/04/10
     is_interactive: false
   </script>
+  <script src="assets/js/main.js" defer></script>
   <script src="assets/js/articles-list.js" defer></script>
 </body>
 </html>
