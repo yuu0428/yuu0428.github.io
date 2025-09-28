@@ -8,12 +8,11 @@
   ];
 
   document.addEventListener('DOMContentLoaded', () => {
-    const yamlSource = document.getElementById('articles-yaml');
     const categoriesContainer = document.querySelector('[data-list-categories]');
     const groupsContainer = document.querySelector('[data-list-groups]');
     const topLinks = document.querySelectorAll('[data-list-top], [data-list-top-drawer]');
 
-    if (!yamlSource || !categoriesContainer || !groupsContainer) {
+    if (!categoriesContainer || !groupsContainer) {
       return;
     }
 
@@ -27,15 +26,7 @@
       });
     }
 
-    let articles = [];
-    try {
-      const parsed = parseYaml(yamlSource.textContent || '');
-      if (parsed && Array.isArray(parsed.articles)) {
-        articles = parsed.articles.slice();
-      }
-    } catch (error) {
-      console.error(error);
-    }
+    const articles = Array.isArray(window.__ARTICLES__) ? window.__ARTICLES__ : [];
 
     renderCategoryNav(categoriesContainer);
     renderGroups(groupsContainer, articles);
@@ -86,6 +77,10 @@
           item.classList.add('is-hidden');
         }
 
+        const link = document.createElement('a');
+        link.href = article.url || '#';
+        link.className = 'article-list-link';
+
         const time = document.createElement('time');
         time.dateTime = normalizeDate(article.date);
         time.textContent = article.date || '';
@@ -96,9 +91,10 @@
         const overview = document.createElement('p');
         overview.textContent = article.overview || '';
 
-        item.appendChild(time);
-        item.appendChild(title);
-        item.appendChild(overview);
+        link.appendChild(time);
+        link.appendChild(title);
+        link.appendChild(overview);
+        item.appendChild(link);
         list.appendChild(item);
       });
 
@@ -111,12 +107,11 @@
         section.appendChild(empty);
       }
 
-      const hiddenCount = Math.max(filtered.length - 5, 0);
       const toggle = document.createElement('button');
       toggle.type = 'button';
       toggle.className = 'article-list-toggle';
       toggle.textContent = '次の5件を表示';
-      toggle.hidden = hiddenCount === 0;
+      toggle.hidden = filtered.length <= 5;
 
       toggle.addEventListener('click', () => {
         const hiddenItems = Array.from(list.querySelectorAll('.article-list-item.is-hidden'));
@@ -143,10 +138,7 @@
   }
 
   function updateActiveCategory(categoryId) {
-    const groups = document.querySelectorAll('.article-list-group');
-    const tabs = document.querySelectorAll('.article-list-category');
-
-    const sections = Array.from(groups);
+    const sections = Array.from(document.querySelectorAll('.article-list-group'));
     sections.forEach((section) => {
       const match = section.dataset.category === categoryId;
       section.hidden = !match;
@@ -160,6 +152,7 @@
       activeSection.classList.add('is-active');
     }
 
+    const tabs = document.querySelectorAll('.article-list-category');
     tabs.forEach((tab) => {
       const match = tab.dataset.category === categoryId;
       tab.classList.toggle('is-active', match);
@@ -177,117 +170,5 @@
     if (!value) return '';
     const normalized = value.replace(/\//g, '-');
     return normalized;
-  }
-
-  function parseYaml(yamlText) {
-    const lines = yamlText
-      .split(/\r?\n/)
-      .map((line) => line.replace(/\t/g, '  '))
-      .filter((line) => line.trim().length && !line.trim().startsWith('#'))
-      .map((line) => ({
-        indent: line.match(/^ */)[0].length,
-        content: line.trim(),
-      }));
-
-    function parseBlock(expectedIndent) {
-      const obj = {};
-
-      while (lines.length) {
-        const { indent, content } = lines[0];
-        if (indent < expectedIndent) break;
-        if (indent > expectedIndent) throw new Error('Invalid indentation in YAML');
-
-        lines.shift();
-
-        if (content.startsWith('- ')) {
-          throw new Error('Unexpected list item');
-        }
-
-        const [keyPart, valuePart = ''] = content.split(/:(.*)/);
-        const key = keyPart.trim();
-        const value = valuePart.trim();
-
-        if (!value) {
-          if (lines[0] && lines[0].indent > indent) {
-            if (lines[0].content.startsWith('- ')) {
-              obj[key] = parseArray(lines[0].indent);
-            } else {
-              obj[key] = parseBlock(lines[0].indent);
-            }
-          } else {
-            obj[key] = null;
-          }
-        } else {
-          obj[key] = castValue(value);
-        }
-      }
-
-      return obj;
-    }
-
-    function parseArray(expectedIndent) {
-      const arr = [];
-
-      while (lines.length) {
-        const { indent, content } = lines[0];
-        if (indent < expectedIndent) break;
-        if (indent > expectedIndent) throw new Error('Invalid indentation in YAML array');
-
-        lines.shift();
-
-        if (!content.startsWith('- ')) {
-          throw new Error('Expected list item');
-        }
-
-        const valuePart = content.slice(2).trim();
-
-        if (!valuePart) {
-          if (lines[0] && lines[0].indent > indent) {
-            if (lines[0].content.startsWith('- ')) {
-              arr.push(parseArray(lines[0].indent));
-            } else {
-              arr.push(parseBlock(lines[0].indent));
-            }
-          } else {
-            arr.push(null);
-          }
-        } else if (valuePart.includes(':')) {
-          const [keyPart, rest = ''] = valuePart.split(/:(.*)/);
-          const obj = {};
-          obj[keyPart.trim()] = castValue(rest.trim());
-
-          if (lines[0] && lines[0].indent > indent) {
-            const nestedIndent = lines[0].indent;
-            const nested = parseBlock(nestedIndent);
-            Object.assign(obj, nested);
-          }
-
-          arr.push(obj);
-        } else {
-          arr.push(castValue(valuePart));
-          if (lines[0] && lines[0].indent > indent) {
-            const nestedIndent = lines[0].indent;
-            const nested = parseBlock(nestedIndent);
-            arr[arr.length - 1] = { value: arr[arr.length - 1], ...nested };
-          }
-        }
-      }
-
-      return arr;
-    }
-
-    function castValue(raw) {
-      if (raw === 'true') return true;
-      if (raw === 'false') return false;
-      if (raw === 'null') return null;
-      if (/^[-+]?[0-9]+$/.test(raw)) return Number.parseInt(raw, 10);
-      if (/^[-+]?[0-9]*\.[0-9]+$/.test(raw)) return Number.parseFloat(raw);
-      if ((raw.startsWith('"') && raw.endsWith('"')) || (raw.startsWith("'") && raw.endsWith("'"))) {
-        return raw.slice(1, -1);
-      }
-      return raw;
-    }
-
-    return parseBlock(0);
   }
 })();

@@ -2,7 +2,6 @@
   const state = {
     reports: [],
     currentCategory: 'volunteer',
-    modalOpen: false,
     hero: {
       slider: null,
       dotsContainer: null,
@@ -47,7 +46,6 @@
     setupDrawer();
     setupHeroSlider();
     setupReports();
-    setupModal();
   });
 
   function setupDrawer() {
@@ -286,7 +284,7 @@
 
     loadReportsData()
       .then((data) => {
-        state.reports = Array.isArray(data.articles) ? data.articles : [];
+        state.reports = Array.isArray(data) ? data : [];
         renderReports({ resetIndex: true });
       })
       .catch((error) => {
@@ -681,15 +679,19 @@
     card.appendChild(overview);
     card.appendChild(arrow);
 
-    if (article.is_interactive && article.content_path) {
+    if (article.url) {
       card.dataset.interactive = 'true';
+      card.dataset.url = article.url;
       card.tabIndex = 0;
       card.setAttribute('role', 'button');
-      card.addEventListener('click', () => openArticle(article));
+      const navigate = () => {
+        window.location.href = article.url;
+      };
+      card.addEventListener('click', navigate);
       card.addEventListener('keydown', (event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
-          openArticle(article);
+          navigate();
         }
       });
     } else {
@@ -700,227 +702,6 @@
     return card;
   }
 
-  function setupModal() {
-    const modal = document.querySelector('.article-modal');
-    if (!modal) return;
-    const closeButtons = modal.querySelectorAll('[data-close-modal]');
-
-    closeButtons.forEach((button) => {
-      button.addEventListener('click', closeArticleModal);
-    });
-
-    modal.addEventListener('click', (event) => {
-      if (event.target === modal) {
-        closeArticleModal();
-      }
-    });
-
-    document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape' && state.modalOpen) {
-        closeArticleModal();
-      }
-    });
-  }
-
-  function openArticle(article) {
-    const modal = document.querySelector('.article-modal');
-    if (!modal) return;
-
-    const meta = modal.querySelector('[data-article-meta]');
-    const title = modal.querySelector('[data-article-title]');
-    const body = modal.querySelector('[data-article-body]');
-
-    meta.textContent = `${article.date || ''}`;
-    title.textContent = article.title || '';
-    body.innerHTML = '<p class="article-loading">読み込み中...</p>';
-
-    modal.classList.add('is-open');
-    modal.setAttribute('aria-hidden', 'false');
-    state.modalOpen = true;
-
-    loadArticleContent(article)
-      .then((markdown) => {
-        renderMarkdown(markdown, body);
-      })
-      .catch((error) => {
-        console.error(error);
-        body.innerHTML = '<p class="article-error">記事を表示できませんでした。</p>';
-      });
-  }
-
-  function closeArticleModal() {
-    const modal = document.querySelector('.article-modal');
-    if (!modal) return;
-    modal.classList.remove('is-open');
-    modal.setAttribute('aria-hidden', 'true');
-    state.modalOpen = false;
-  }
-
-  function renderMarkdown(markdown, container) {
-    const normalized = markdown.replace(/\r\n/g, '\n').trim();
-    const blocks = normalized.split(/\n{2,}/);
-    const fragment = document.createDocumentFragment();
-
-    blocks.forEach((block) => {
-      const lines = block.split('\n');
-      const firstLine = lines[0] || '';
-      let element;
-
-      if (firstLine.startsWith('### ')) {
-        element = document.createElement('h4');
-        element.textContent = firstLine.replace(/^###\s*/, '').trim();
-        fragment.appendChild(element);
-        if (lines.length > 1) {
-          const paragraph = document.createElement('p');
-          paragraph.textContent = lines.slice(1).join(' ').trim();
-          fragment.appendChild(paragraph);
-        }
-        return;
-      }
-
-      if (firstLine.startsWith('## ')) {
-        element = document.createElement('h3');
-        element.textContent = firstLine.replace(/^##\s*/, '').trim();
-        fragment.appendChild(element);
-        if (lines.length > 1) {
-          const paragraph = document.createElement('p');
-          paragraph.textContent = lines.slice(1).join(' ').trim();
-          fragment.appendChild(paragraph);
-        }
-        return;
-      }
-
-      if (firstLine.startsWith('# ')) {
-        element = document.createElement('h2');
-        element.textContent = firstLine.replace(/^#\s*/, '').trim();
-        fragment.appendChild(element);
-        if (lines.length > 1) {
-          const paragraph = document.createElement('p');
-          paragraph.textContent = lines.slice(1).join(' ').trim();
-          fragment.appendChild(paragraph);
-        }
-        return;
-      }
-
-      element = document.createElement('p');
-      element.textContent = block;
-      fragment.appendChild(element);
-    });
-
-    container.innerHTML = '';
-    container.appendChild(fragment);
-  }
-
-  function parseYaml(yamlText) {
-    const lines = yamlText
-      .split(/\r?\n/)
-      .map((line) => line.replace(/\t/g, '  '))
-      .filter((line) => line.trim().length && !line.trim().startsWith('#'))
-      .map((line) => ({
-        indent: line.match(/^ */)[0].length,
-        content: line.trim(),
-      }));
-
-    function parseBlock(expectedIndent) {
-      const obj = {};
-
-      while (lines.length) {
-        const { indent, content } = lines[0];
-        if (indent < expectedIndent) break;
-        if (indent > expectedIndent) throw new Error('Invalid indentation in YAML');
-
-        lines.shift();
-
-        if (content.startsWith('- ')) {
-          throw new Error('Unexpected list item');
-        }
-
-        const [keyPart, valuePart = ''] = content.split(/:(.*)/);
-        const key = keyPart.trim();
-        const value = valuePart.trim();
-
-        if (!value) {
-          if (lines[0] && lines[0].indent > indent) {
-            if (lines[0].content.startsWith('- ')) {
-              obj[key] = parseArray(lines[0].indent);
-            } else {
-              obj[key] = parseBlock(lines[0].indent);
-            }
-          } else {
-            obj[key] = null;
-          }
-        } else {
-          obj[key] = castValue(value);
-        }
-      }
-
-      return obj;
-    }
-
-    function parseArray(expectedIndent) {
-      const arr = [];
-
-      while (lines.length) {
-        const { indent, content } = lines[0];
-        if (indent < expectedIndent) break;
-        if (indent > expectedIndent) throw new Error('Invalid indentation in YAML array');
-
-        lines.shift();
-
-        if (!content.startsWith('- ')) {
-          throw new Error('Expected list item');
-        }
-
-        const valuePart = content.slice(2).trim();
-
-        if (!valuePart) {
-          if (lines[0] && lines[0].indent > indent) {
-            if (lines[0].content.startsWith('- ')) {
-              arr.push(parseArray(lines[0].indent));
-            } else {
-              arr.push(parseBlock(lines[0].indent));
-            }
-          } else {
-            arr.push(null);
-          }
-        } else if (valuePart.includes(':')) {
-          const [keyPart, rest = ''] = valuePart.split(/:(.*)/);
-          const obj = {};
-          obj[keyPart.trim()] = castValue(rest.trim());
-
-          if (lines[0] && lines[0].indent > indent) {
-            const nestedIndent = lines[0].indent;
-            const nested = parseBlock(nestedIndent);
-            Object.assign(obj, nested);
-          }
-
-          arr.push(obj);
-        } else {
-          arr.push(castValue(valuePart));
-          if (lines[0] && lines[0].indent > indent) {
-            const nestedIndent = lines[0].indent;
-            const nested = parseBlock(nestedIndent);
-            arr[arr.length - 1] = { value: arr[arr.length - 1], ...nested };
-          }
-        }
-      }
-
-      return arr;
-    }
-
-    function castValue(raw) {
-      if (raw === 'true') return true;
-      if (raw === 'false') return false;
-      if (raw === 'null') return null;
-      if (/^[-+]?[0-9]+$/.test(raw)) return Number.parseInt(raw, 10);
-      if (/^[-+]?[0-9]*\.[0-9]+$/.test(raw)) return Number.parseFloat(raw);
-      if ((raw.startsWith('"') && raw.endsWith('"')) || (raw.startsWith("'") && raw.endsWith("'"))) {
-        return raw.slice(1, -1);
-      }
-      return raw;
-    }
-
-    return parseBlock(0);
   }
 
   function getGapValue(element) {
@@ -938,55 +719,16 @@
   }
 
   function loadReportsData() {
-    const inlineSource = document.getElementById('articles-yaml');
-    if (inlineSource && inlineSource.textContent.trim().length) {
-      try {
-        const parsed = parseYaml(inlineSource.textContent);
-        return Promise.resolve(parsed);
-      } catch (error) {
-        return Promise.reject(error);
-      }
+    if (window.__ARTICLES__) {
+      return Promise.resolve(window.__ARTICLES__);
     }
 
-    if (window.location.protocol === 'file:') {
-      return Promise.reject(new Error('ローカルファイル環境では記事データを読み込めませんでした。'));
-    }
-
-    return fetch('assets/data/articles.yaml')
+    return fetch('/assets/data/articles.json', { cache: 'no-store' })
       .then((response) => {
         if (!response.ok) {
-          throw new Error('Failed to load articles.yaml');
+          throw new Error('Failed to load articles.json');
         }
-        return response.text();
-      })
-      .then((text) => parseYaml(text));
-  }
-
-  function loadArticleContent(article) {
-    if (!article) {
-      return Promise.reject(new Error('記事情報が見つかりません。'));
-    }
-
-    const inlineId = `article-${article.id}`;
-    const inlineSource = document.getElementById(inlineId);
-    if (inlineSource && inlineSource.textContent.trim().length) {
-      return Promise.resolve(inlineSource.textContent);
-    }
-
-    if (!article.content_path) {
-      return Promise.reject(new Error('記事のパスが指定されていません。'));
-    }
-
-    if (window.location.protocol === 'file:') {
-      return Promise.reject(new Error('ローカルファイル環境では記事本文を読み込めませんでした。'));
-    }
-
-    return fetch(article.content_path)
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error('記事の読み込みに失敗しました');
-        }
-        return response.text();
+        return response.json();
       });
   }
 

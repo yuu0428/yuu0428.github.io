@@ -1,0 +1,26 @@
+---
+layout: layouts/base.njk
+pagination:
+  data: articles
+  size: 1
+  alias: article
+permalink: "articles/{{ article.id }}/index.html"
+eleventyComputed:
+  title: "{{ article.title }} | Arc yamanashi"
+---
+<article class="article-detail">
+  <header class="article-detail__header">
+    <p class="article-detail__meta">{{ article.date }}</p>
+    <h1 class="article-detail__title">{{ article.title }}</h1>
+    <p class="article-detail__category">{{ article.categoryLabel }}</p>
+  </header>
+  <div class="article-detail__body">
+    <p>{{ article.content }}</p>
+  </div>
+  <footer class="article-detail__footer">
+    <a class="article-detail__back" href="/articles/">記事一覧に戻る</a>
+  </footer>
+</article>
+{% block scripts %}
+  <script src="/assets/js/main.js" defer></script>
+{% endblock %}
