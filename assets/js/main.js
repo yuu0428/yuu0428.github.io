@@ -39,6 +39,8 @@
       resizeTimer: null,
       dots: [],
       totalArticles: 0,
+      startIndex: 0,
+      dragDelta: 0,
     },
   };
 
@@ -226,7 +228,7 @@
       }
 
       const diff = slider.scrollLeft - heroState.startScroll;
-      const threshold = heroState.sliderWidth * 0.18;
+      const threshold = heroState.sliderWidth * 0.1;
       slider.classList.remove('is-dragging');
       heroState.isDragging = false;
 
@@ -537,6 +539,8 @@
     sliderState.pointerId = event.pointerId;
     sliderState.dragStartX = event.clientX;
     sliderState.startTranslate = sliderState.currentTranslate;
+    sliderState.startIndex = sliderState.currentIndex;
+    sliderState.dragDelta = 0;
     sliderState.container.classList.add('is-dragging');
     sliderState.allowClick = true;
     sliderState.didDrag = false;
@@ -561,6 +565,8 @@
       sliderState.allowClick = false;
       sliderState.didDrag = true;
     }
+
+    sliderState.dragDelta = delta;
 
     const nextTranslate = clamp(
       sliderState.startTranslate - delta,
@@ -594,7 +600,16 @@
     }
 
     if (sliderState.step > 0) {
-      const targetIndex = Math.round(sliderState.currentTranslate / sliderState.step);
+      const diff = sliderState.currentTranslate - sliderState.startTranslate;
+      const threshold = sliderState.step * 0.2;
+      let targetIndex = sliderState.startIndex;
+
+      if (diff > threshold || sliderState.dragDelta < -threshold) {
+        targetIndex += 1;
+      } else if (diff < -threshold || sliderState.dragDelta > threshold) {
+        targetIndex -= 1;
+      }
+
       goToReportsSlide(targetIndex);
     } else {
       goToReportsSlide(sliderState.currentIndex);
@@ -606,6 +621,7 @@
       }, 0);
     }
     sliderState.didDrag = false;
+    sliderState.dragDelta = 0;
   }
 
   function handleTrackClick(event) {
