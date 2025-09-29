@@ -12,7 +12,7 @@
 <body>
   <header class="site-header" data-fixed>
     <div class="header-inner">
-      <button class="menu-toggle" aria-label="メニューを開く" aria-controls="site-drawer" aria-expanded="false">
+      <button class="menu-toggle" aria-label="メニューを開く" aria-controls="circular-nav" aria-expanded="false">
         <span class="menu-bar"></span>
         <span class="menu-bar"></span>
         <span class="menu-bar"></span>
@@ -23,27 +23,22 @@
     </div>
   </header>
 
-  <aside class="site-drawer" id="site-drawer" aria-hidden="true">
-    <div class="drawer-inner">
-      <nav class="drawer-nav" aria-label="主要メニュー">
-        <ul>
-          <li><a href="/">TOP</a></li>
-          <li><a href="/#overview">団体概要</a></li>
-          <li><a href="/#greeting">代表挨拶</a></li>
-          <li><a href="/#reports">活動報告</a></li>
-          <li><a href="/articles/">記事一覧</a></li>
-          <li><a href="/#audience-highschool">高校生の方へ</a></li>
-          <li><a href="/#audience-organizations">他団体の方へ</a></li>
-          <li><a href="/#note-link">note</a></li>
-        </ul>
-      </nav>
-      <div class="drawer-links">
-        <a class="contact-link" href="#" target="_blank" rel="noopener" data-placeholder>Instagram</a>
-        <a class="contact-link" href="#" target="_blank" rel="noopener" data-placeholder>Email</a>
+  <div class="circular-nav" id="circular-nav" data-circular-nav role="dialog" aria-modal="true" aria-hidden="true" hidden>
+    <div class="circular-nav__backdrop" data-nav-close></div>
+    <div class="circular-nav__wheel-wrapper">
+      <div class="circular-nav__wheel" data-nav-wheel>
+        <button type="button" class="circular-nav__item" data-nav-item data-target="#top">TOP</button>
+        <button type="button" class="circular-nav__item" data-nav-item data-target="#overview">団体概要</button>
+        <button type="button" class="circular-nav__item" data-nav-item data-target="#greeting">代表挨拶</button>
+        <button type="button" class="circular-nav__item" data-nav-item data-target="#reports">活動報告</button>
+        <button type="button" class="circular-nav__item" data-nav-item data-target="#audience-highschool">高校生の方へ</button>
+        <button type="button" class="circular-nav__item" data-nav-item data-target="#audience-organizations">他団体の方へ</button>
+        <button type="button" class="circular-nav__item" data-nav-item data-target="#note-link">note</button>
+        <button type="button" class="circular-nav__item" data-nav-item data-placeholder="contact">お問い合わせ</button>
       </div>
+      <button type="button" class="circular-nav__close" aria-label="メニューを閉じる" data-nav-close></button>
     </div>
-  </aside>
-  <div class="drawer-backdrop" hidden></div>
+  </div>
 
   <main>
     <section id="top" class="hero" aria-label="ヒーロー">

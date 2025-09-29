@@ -2,6 +2,9 @@
   const state = {
     reports: [],
     currentCategory: 'volunteer',
+    menu: {
+      isOpen: false,
+    },
     hero: {
       slider: null,
       dotsContainer: null,
@@ -45,59 +48,371 @@
   };
 
   document.addEventListener('DOMContentLoaded', () => {
-    setupDrawer();
+    setupCircularNav();
     setupHeroSlider();
     setupReports();
   });
 
-  function setupDrawer() {
+  function setupCircularNav() {
     const toggle = document.querySelector('.menu-toggle');
-    const drawer = document.querySelector('.site-drawer');
-    const backdrop = document.querySelector('.drawer-backdrop');
-    if (!toggle || !drawer || !backdrop) return;
+    const overlay = document.querySelector('[data-circular-nav]');
+    const wheel = overlay ? overlay.querySelector('[data-nav-wheel]') : null;
+    if (!toggle || !overlay || !wheel) return;
 
-    const navLinks = drawer.querySelectorAll('a[href^="#"]');
-    const focusableSelectors = 'a[href], button:not([disabled]), [tabindex="0"]';
+    const items = Array.from(wheel.querySelectorAll('[data-nav-item]'));
+    if (!items.length) return;
+
+    const gapAngle = 20;
+    const arcSpan = 360 - gapAngle;
+
+    const navState = {
+      rotation: 0,
+      lastAngle: 0,
+      pointerId: null,
+      isDragging: false,
+      startRotation: 0,
+      didDrag: false,
+      radius: 0,
+      snapTimer: null,
+      hideTimer: null,
+      resizeTimer: null,
+      baseAngles: [],
+      step: 0,
+      gapAngle,
+      arcSpan,
+    };
+
+    if (items.length === 1) {
+      navState.baseAngles = [0];
+      navState.step = 360;
+    } else {
+      navState.step = 360 / items.length;
+      navState.baseAngles = items.map((_, index) => index * navState.step);
+      const desiredGapCenter = -90;
+      const lastBaseAngle = navState.baseAngles[items.length - 1] ?? 0;
+      const gapCenterWithoutRotation = lastBaseAngle + navState.step / 2;
+      navState.rotation = normalizeAngle(desiredGapCenter - gapCenterWithoutRotation);
+    }
+
     let lastFocused = null;
 
-    function openDrawer() {
-      lastFocused = document.activeElement;
-      drawer.classList.add('is-open');
-      backdrop.hidden = false;
-      toggle.setAttribute('aria-expanded', 'true');
-      drawer.setAttribute('aria-hidden', 'false');
-      const focusable = drawer.querySelector(focusableSelectors);
-      if (focusable) focusable.focus();
-      document.addEventListener('keydown', handleKeydown);
-    }
-
-    function closeDrawer() {
-      drawer.classList.remove('is-open');
-      backdrop.hidden = true;
-      toggle.setAttribute('aria-expanded', 'false');
-      drawer.setAttribute('aria-hidden', 'true');
-      if (lastFocused) lastFocused.focus();
-      document.removeEventListener('keydown', handleKeydown);
-    }
-
-    function handleKeydown(event) {
-      if (event.key === 'Escape') {
-        closeDrawer();
-      }
-    }
+    const closeTargets = overlay.querySelectorAll('[data-nav-close]');
 
     toggle.addEventListener('click', () => {
       const expanded = toggle.getAttribute('aria-expanded') === 'true';
-      expanded ? closeDrawer() : openDrawer();
+      if (expanded) {
+        closeNav();
+      } else {
+        openNav();
+      }
     });
 
-    backdrop.addEventListener('click', closeDrawer);
-
-    navLinks.forEach((link) => {
-      link.addEventListener('click', () => {
-        closeDrawer();
+    closeTargets.forEach((element) => {
+      element.addEventListener('click', () => {
+        closeNav();
       });
     });
+
+    overlay.addEventListener('transitionend', (event) => {
+      if (event.target !== overlay || event.propertyName !== 'opacity') return;
+      if (!state.menu.isOpen) {
+        overlay.hidden = true;
+        overlay.setAttribute('aria-hidden', 'true');
+      }
+    });
+
+    wheel.addEventListener('pointerdown', handlePointerDown);
+    wheel.addEventListener('pointermove', handlePointerMove);
+    wheel.addEventListener('pointerup', handlePointerUp);
+    wheel.addEventListener('pointercancel', handlePointerUp);
+    wheel.addEventListener('pointerleave', handlePointerUp);
+    wheel.addEventListener('wheel', handleWheel, { passive: false });
+
+    window.addEventListener('resize', handleResize);
+
+    items.forEach((item) => {
+      item.addEventListener('click', (event) => {
+        if (navState.didDrag) {
+          navState.didDrag = false;
+          return;
+        }
+
+        event.preventDefault();
+        const targetSelector = item.dataset.target;
+        const url = item.dataset.url;
+        closeNav();
+
+        window.setTimeout(() => {
+          if (targetSelector) {
+            const target = document.querySelector(targetSelector);
+            if (target && typeof target.scrollIntoView === 'function') {
+              target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+          } else if (url) {
+            window.open(url, '_blank', 'noopener');
+          }
+        }, 280);
+      });
+    });
+
+    function openNav() {
+      if (state.menu.isOpen) return;
+      lastFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      overlay.hidden = false;
+      overlay.setAttribute('aria-hidden', 'false');
+      requestAnimationFrame(() => {
+        overlay.classList.add('is-visible');
+        updateWheel(true);
+      });
+      state.menu.isOpen = true;
+      document.body.classList.add('nav-open');
+      toggle.setAttribute('aria-expanded', 'true');
+      toggle.setAttribute('aria-label', 'メニューを閉じる');
+      focusActiveItem();
+      document.addEventListener('keydown', handleKeydown);
+    }
+
+    function closeNav() {
+      if (!state.menu.isOpen) return;
+      state.menu.isOpen = false;
+      overlay.classList.remove('is-visible');
+      overlay.setAttribute('aria-hidden', 'true');
+      toggle.setAttribute('aria-expanded', 'false');
+      toggle.setAttribute('aria-label', 'メニューを開く');
+      document.body.classList.remove('nav-open');
+      document.removeEventListener('keydown', handleKeydown);
+      wheel.classList.remove('is-dragging');
+      navState.isDragging = false;
+      navState.pointerId = null;
+      navState.didDrag = false;
+      window.clearTimeout(navState.snapTimer);
+      window.clearTimeout(navState.resizeTimer);
+      window.clearTimeout(navState.hideTimer);
+      navState.snapTimer = null;
+      navState.resizeTimer = null;
+      navState.hideTimer = window.setTimeout(() => {
+        if (!state.menu.isOpen) {
+          overlay.hidden = true;
+          overlay.setAttribute('aria-hidden', 'true');
+        }
+      }, 260);
+
+      if (lastFocused && typeof lastFocused.focus === 'function') {
+        lastFocused.focus();
+      } else {
+        toggle.focus();
+      }
+    }
+
+    function handleKeydown(event) {
+      if (!state.menu.isOpen) return;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeNav();
+        return;
+      }
+
+      if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+        event.preventDefault();
+        rotateBy(-navState.step);
+      } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        rotateBy(navState.step);
+      }
+    }
+
+    function handlePointerDown(event) {
+      if (event.pointerType === 'mouse' && event.button !== 0) {
+        return;
+      }
+
+      navState.isDragging = true;
+      navState.pointerId = event.pointerId;
+      navState.startRotation = navState.rotation;
+      navState.lastAngle = getPointerAngle(event);
+      navState.didDrag = false;
+      wheel.classList.add('is-dragging');
+      if (wheel.setPointerCapture) {
+        wheel.setPointerCapture(event.pointerId);
+      }
+    }
+
+    function handlePointerMove(event) {
+      if (!navState.isDragging || navState.pointerId !== event.pointerId) {
+        return;
+      }
+
+      const angle = getPointerAngle(event);
+      if (Number.isNaN(angle)) return;
+
+      const delta = shortestAngle(navState.lastAngle, angle);
+      navState.rotation += delta;
+      navState.lastAngle = angle;
+
+      if (Math.abs(navState.rotation - navState.startRotation) > navState.step * 0.2) {
+        navState.didDrag = true;
+      }
+
+      updateWheel();
+    }
+
+    function handlePointerUp(event) {
+      if (!navState.isDragging || (navState.pointerId !== null && navState.pointerId !== event.pointerId)) {
+        return;
+      }
+
+      navState.isDragging = false;
+      navState.pointerId = null;
+      wheel.classList.remove('is-dragging');
+
+      if (wheel.releasePointerCapture && event.pointerId !== undefined) {
+        wheel.releasePointerCapture(event.pointerId);
+      }
+
+      snapToActive();
+      navState.didDrag = false;
+    }
+
+    function handleWheel(event) {
+      event.preventDefault();
+      const delta = Math.abs(event.deltaY) > Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
+      if (Number.isNaN(delta)) return;
+
+      navState.rotation += delta * 0.35;
+      navState.didDrag = true;
+      updateWheel();
+      scheduleSnap();
+    }
+
+    function handleResize() {
+      if (!state.menu.isOpen) return;
+      window.clearTimeout(navState.resizeTimer);
+      navState.resizeTimer = window.setTimeout(() => {
+        navState.radius = 0;
+        updateWheel(true);
+      }, 140);
+    }
+
+    function rotateBy(amount) {
+      navState.rotation += amount;
+      navState.didDrag = true;
+      updateWheel();
+      scheduleSnap();
+    }
+
+    function scheduleSnap() {
+      window.clearTimeout(navState.snapTimer);
+      navState.snapTimer = window.setTimeout(() => {
+        snapToActive();
+        navState.didDrag = false;
+      }, 160);
+    }
+
+    function snapToActive() {
+      const index = getActiveItemIndex();
+      if (index === null) return;
+
+      const targetAngle = navState.baseAngles[index];
+      const current = normalizeAngle(targetAngle + navState.rotation);
+      navState.rotation -= current;
+      updateWheel();
+      focusActiveItem();
+    }
+
+    function focusActiveItem() {
+      const index = getActiveItemIndex();
+      const item = items[index] || items[0];
+      if (item) {
+        item.focus({ preventScroll: true });
+      }
+    }
+
+    function updateWheel(force = false) {
+      const rect = wheel.getBoundingClientRect();
+      if (!rect.width || !rect.height) {
+        return;
+      }
+
+      if (force || !navState.radius) {
+        navState.radius = Math.max(rect.width / 2 - 12, rect.width * 0.62);
+      }
+
+      const activeIndex = getActiveItemIndex();
+
+      items.forEach((item, index) => {
+        const baseAngle = navState.baseAngles[index] ?? 0;
+        const angle = baseAngle + navState.rotation;
+        const distance = Math.abs(normalizeAngle(angle));
+
+        const proximity = Math.max(0, 1 - Math.min(distance / (navState.step * 1.1 || 1), 1));
+        const scale = 0.84 + proximity * 0.22;
+        const opacity = 0.52 + proximity * 0.42;
+
+        const angleRad = (angle * Math.PI) / 180;
+        const targetX = Math.cos(angleRad) * navState.radius;
+        const targetY = Math.sin(angleRad) * navState.radius;
+        const translateX = `calc(${targetX.toFixed(3)}px - 50%)`;
+        const translateY = `calc(${targetY.toFixed(3)}px - 50%)`;
+
+        item.style.transform = `translate(${translateX}, ${translateY}) scale(${scale.toFixed(3)})`;
+        item.style.opacity = opacity.toFixed(3);
+        item.style.zIndex = String(100 + Math.round(proximity * 100));
+        item.classList.toggle('is-active', index === activeIndex);
+        item.setAttribute('tabindex', index === activeIndex ? '0' : '-1');
+      });
+
+      const toPositive = (value) => ((value % 360) + 360) % 360;
+      if (items.length >= 2) {
+        const topAngle = toPositive(navState.baseAngles[0] + navState.rotation);
+        const contactAngle = toPositive(navState.baseAngles[items.length - 1] + navState.rotation);
+        const forwardDiff = (topAngle - contactAngle + 360) % 360;
+        const gapCenter = (contactAngle + forwardDiff / 2) % 360;
+        const arcStart = (gapCenter + navState.gapAngle / 2) % 360;
+        const cssArcStart = (arcStart + 90) % 360;
+        wheel.style.setProperty('--nav-arc-start', `${cssArcStart}deg`);
+      } else {
+        const cssArcStart = (toPositive(navState.rotation) + 90) % 360;
+        wheel.style.setProperty('--nav-arc-start', `${cssArcStart}deg`);
+      }
+
+      wheel.style.setProperty('--nav-arc-span', `${navState.arcSpan}deg`);
+    }
+
+    function getActiveItemIndex() {
+      let indexOfActive = 0;
+      let minDistance = Number.POSITIVE_INFINITY;
+
+      items.forEach((_, index) => {
+        const angle = navState.baseAngles[index] + navState.rotation;
+        const distance = Math.abs(normalizeAngle(angle));
+        if (distance < minDistance) {
+          minDistance = distance;
+          indexOfActive = index;
+        }
+      });
+
+      return indexOfActive;
+    }
+
+    function getPointerAngle(event) {
+      const rect = wheel.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      const radians = Math.atan2(event.clientY - cy, event.clientX - cx);
+      return radians * (180 / Math.PI);
+    }
+
+    function shortestAngle(from, to) {
+      let diff = to - from;
+      while (diff > 180) diff -= 360;
+      while (diff < -180) diff += 360;
+      return diff;
+    }
+
+    function normalizeAngle(angle) {
+      const normalized = ((angle % 360) + 360) % 360;
+      return normalized > 180 ? normalized - 360 : normalized;
+    }
   }
 
   function setupHeroSlider() {
@@ -112,7 +427,10 @@
     heroState.slider = slider;
     heroState.dotsContainer = dotsContainer;
     heroState.slides = slides;
-    heroState.prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const reduceMotionQuery = typeof window.matchMedia === 'function'
+      ? window.matchMedia('(prefers-reduced-motion: reduce)')
+      : null;
+    heroState.prefersReducedMotion = Boolean(reduceMotionQuery && reduceMotionQuery.matches);
 
     slides.forEach((_, index) => {
       const dot = document.createElement('button');
