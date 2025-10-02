@@ -97,6 +97,11 @@
     let lastFocused = null;
 
     const closeTargets = overlay.querySelectorAll('[data-nav-close]');
+    const prefersReducedMotionQuery = typeof window.matchMedia === 'function'
+      ? window.matchMedia('(prefers-reduced-motion: reduce)')
+      : null;
+    const shouldReduceMotion = Boolean(prefersReducedMotionQuery && prefersReducedMotionQuery.matches);
+    let openingAnimation = null;
 
     toggle.addEventListener('click', () => {
       const expanded = toggle.getAttribute('aria-expanded') === 'true';
@@ -162,6 +167,7 @@
       overlay.setAttribute('aria-hidden', 'false');
       requestAnimationFrame(() => {
         overlay.classList.add('is-visible');
+        playOpeningAnimation();
         updateWheel(true);
       });
       state.menu.isOpen = true;
@@ -182,6 +188,7 @@
       document.body.classList.remove('nav-open');
       document.removeEventListener('keydown', handleKeydown);
       wheel.classList.remove('is-dragging');
+      cancelOpeningAnimation();
       navState.isDragging = false;
       navState.pointerId = null;
       navState.didDrag = false;
@@ -202,6 +209,50 @@
       } else {
         toggle.focus();
       }
+    }
+
+    function playOpeningAnimation() {
+      if (shouldReduceMotion) return;
+      cancelOpeningAnimation();
+      if (typeof wheel.animate === 'function') {
+        openingAnimation = wheel.animate(
+          [
+            { transform: 'rotate(57deg) scale(0.91)' },
+            { transform: 'rotate(-30deg) scale(1.06)', offset: 0.55 },
+            { transform: 'rotate(0deg) scale(1)' },
+          ],
+          {
+            duration: 650,
+            easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+            fill: 'forwards',
+          },
+        );
+        openingAnimation.onfinish = () => {
+          wheel.style.transform = '';
+          openingAnimation = null;
+        };
+        openingAnimation.oncancel = () => {
+          wheel.style.transform = '';
+          openingAnimation = null;
+        };
+      } else {
+        // Fallback for older browsers: apply CSS animation via inline style.
+        wheel.style.animation = 'circular-nav-opening-spin 650ms cubic-bezier(0.16, 1, 0.3, 1) forwards';
+        window.setTimeout(() => {
+          wheel.style.animation = '';
+        }, 670);
+      }
+    }
+
+    function cancelOpeningAnimation() {
+      if (openingAnimation) {
+        openingAnimation.cancel();
+        openingAnimation = null;
+      }
+      if (wheel.style.animation) {
+        wheel.style.animation = '';
+      }
+      wheel.style.transform = '';
     }
 
     function handleKeydown(event) {
